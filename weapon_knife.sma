@@ -9,13 +9,13 @@
 #include <msg_floatstocks>
  
 new PLUGIN_NAME[] = "UNREAL KNIFE";
-new PLUGIN_VERSION[] = "1.0";
+new PLUGIN_VERSION[] = "1.1";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new UNREAL_KNIFE_MAX_AMMO = 10;
 new Float:UNREAL_KNIFE_MAX_DMG = 20.0;
 new Float:UNREAL_KNIFE_RELOAD_RATE = 1.0;
-new Float:UNREAL_KNIFE_REMOVE_DELAY = 1.0;
+new Float:UNREAL_KNIFE_REMOVE_DELAY = 0.5;
 new Float:UNREAL_KNIFE_GRAVITY_DELAY = 0.4;
 
 new KNIFE_TAILS_COLOR_RGB[3] = {50,50,50};
@@ -33,14 +33,17 @@ new UNREAL_KNIFE_WEAPON[] = "weapon_knife";
 new const UNREAL_KNIFE_AMMO_NAME[] = "KnifeAmmo";
 new const UNREAL_KNIFE_AMMO_ID = 16;
 
-new const UNREAL_KNIFE__P_MODEL[] = "models/rm_reloaded/p_unreknife.mdl";
-new const UNREAL_KNIFE__V_MODEL[] = "models/rm_reloaded/v_unreknife.mdl";
-new const UNREAL_KNIFE__W_MODEL[] = "models/rm_reloaded/w_unreknife.mdl";
+new const UNREAL_KNIFE_P_MODEL[] = "models/rm_reloaded/p_unreknife.mdl";
+new const UNREAL_KNIFE_V_MODEL[] = "models/rm_reloaded/v_unreknife.mdl";
+new const UNREAL_KNIFE_W_MODEL[] = "models/rm_reloaded/w_unreknife.mdl";
+
+new const UNREAL_KNIFE_SOUND_TARGET[] = "weapons/knife_deploy1.wav";
+new const UNREAL_KNIFE_SOUND_SHOOT[] = "weapons/knife_slash1.wav";
 
 new UNREAL_KNIFE_SPRITE_AMMO[] = "sprites/laserbeam.spr"
 new UNREAL_KNIFE_SPRITE_AMMO_ID = 0;
 
-new UNREAL_KNIFE__W_MODEL_ID = 0;
+new UNREAL_KNIFE_W_MODEL_ID = 0;
 
 new WeaponIdType: UNREAL_KNIFE_UNUSED_WEAPONID = WEAPON_GLOCK;
 new WeaponIdType: UNREAL_KNIFE_FAKE_WEAPONID = WeaponIdType:77;
@@ -77,6 +80,32 @@ public plugin_init()
 	RegisterHookChain(RG_CBasePlayerWeapon_DefaultDeploy, "CBasePlayerWeapon_DefaultDeploy_Pre");
 }
 
+
+public plugin_precache() {
+
+	precache_generic("sprites/weapon_unrealknife.txt");
+	precache_generic("sprites/unreal_knife.spr");
+	
+	precache_sound(UNREAL_KNIFE_SOUND_TARGET);
+	precache_sound(UNREAL_KNIFE_SOUND_SHOOT);
+
+	UNREAL_KNIFE_SPRITE_AMMO_ID = precache_model(UNREAL_KNIFE_SPRITE_AMMO);
+	
+	precache_model(UNREAL_KNIFE_P_MODEL);
+	UNREAL_KNIFE_W_MODEL_ID = precache_model(UNREAL_KNIFE_W_MODEL);
+	precache_model(UNREAL_KNIFE_V_MODEL);
+	
+	MsgIdWeaponList = get_user_msgid("WeaponList");
+	if (MsgIdWeaponList) 
+	{
+		MsgHookWeaponList = register_message(MsgIdWeaponList, "HookWeaponList");
+	}
+	else 
+	{
+		FwdRegUserMsg = register_forward(FM_RegUserMsg, "RegUserMsg_Post", true);
+	}
+}
+
 public CmdSelect(const id)
 {
 	if(!is_user_alive(id)) return PLUGIN_HANDLED;
@@ -88,23 +117,6 @@ public CmdSelect(const id)
 	return PLUGIN_HANDLED;
 }
 
-public IncreaseAmmo(pItem)
-{
-	if (!is_nullent(pItem))
-	{
-		new iAmmo = get_member(pItem, m_Weapon_iClip);
-		
-		if (iAmmo >= UNREAL_KNIFE_MAX_AMMO)
-		{
-			return;
-		}
-		
-		iAmmo++;
-		set_member(pItem, m_Weapon_iClip, iAmmo);
-		set_entvar(pItem, var_nextthink, get_gametime() + UNREAL_KNIFE_RELOAD_RATE);
-	}
-}
-
 public PrimaryAttack(pItem)
 {
 	if (WeaponIdType:rg_get_iteminfo(pItem,ItemInfo_iId) == UNREAL_KNIFE_FAKE_WEAPONID)
@@ -113,6 +125,7 @@ public PrimaryAttack(pItem)
 		
 		if (!is_user_connected(pAttacker))
 			return HAM_SUPERCEDE;
+
 			
 		new iAmmo = get_member(pItem, m_Weapon_iClip);
 		
@@ -120,6 +133,8 @@ public PrimaryAttack(pItem)
 		{
 			return HAM_SUPERCEDE;
 		}
+		
+		rh_emit_sound2(pAttacker, 0, CHAN_WEAPON , UNREAL_KNIFE_SOUND_SHOOT, VOL_NORM, ATTN_NORM, 0, PITCH_NORM );
 		
 		iAmmo--;
 		
@@ -159,121 +174,6 @@ public PrimaryAttack(pItem)
 	return HAM_IGNORED;
 }
 
-public UNREAL_KNIFE_SHOT1(const item, const id, Float:fvOrigin[3], Float:fvVelocity[3], Float:fvAngles[3])
-{
-	new iEnt = rg_create_entity("info_target");
-	if (!iEnt || is_nullent(iEnt))
-	{
-		return;
-	}
-	
-	set_entvar(iEnt, var_classname, UNREAL_KNIFE_AMMO1_CLASSNAME);
-	
-	set_entvar(iEnt, var_model, UNREAL_KNIFE__W_MODEL);
-	set_entvar(iEnt, var_modelindex, UNREAL_KNIFE__W_MODEL_ID);
-	
-	set_entvar(iEnt, var_mins, Float:{-2.0,-2.0,-2.0});
-	set_entvar(iEnt, var_maxs, Float:{2.0,2.0,2.0});
-	
-	set_entvar(iEnt, var_solid, SOLID_TRIGGER );
-
-	set_entvar(iEnt, var_movetype, MOVETYPE_FLY);
-	
-	set_entvar(iEnt, var_sequence, 0);
-	set_entvar(iEnt, var_framerate, 1.0);
-	
-	set_entvar(iEnt, var_iuser1, id);
-	set_entvar(iEnt, var_iuser2, UNREAL_KNIFE_MAGIC_NUMBER);
-	set_entvar(iEnt, var_iuser3, item);
-	
-	entity_set_origin(iEnt, fvOrigin);
-
-	set_entvar(iEnt, var_velocity, fvVelocity);
-	
-	static Float:tmpAngles[3];
-	tmpAngles = fvAngles;
-	tmpAngles[0] = 360 - fvAngles[0];
-	
-	// reversed angles
-	set_entvar(iEnt, var_angles, tmpAngles);
-
-	te_create_following_beam(iEnt, UNREAL_KNIFE_SPRITE_AMMO_ID, KNIFE_TAIL_LEN, KNIFE_TAIL_WIDTH, 
-								KNIFE_TAILS_COLOR_RGB[0], KNIFE_TAILS_COLOR_RGB[1], KNIFE_TAILS_COLOR_RGB[2], 200);
-	
-	SetThink(iEnt, "MAKEGRAVITY");
-	SetTouch(iEnt, "TouchAmmo1");
-	
-	set_entvar(iEnt, var_nextthink, get_gametime() + UNREAL_KNIFE_GRAVITY_DELAY);
-}
-
-public TouchAmmo1(const rune_ent, const touch_ent)
-{
-	if (!is_nullent(rune_ent))
-	{
-		if ( touch_ent == 0 || !is_nullent(touch_ent) )
-		{
-			new pAttacker = get_entvar(rune_ent,var_iuser1);
-			new pInflector = get_entvar(rune_ent,var_iuser3);
-			if (!is_nullent(pInflector) && is_user_connected(pAttacker))
-			{
-				new pTarget = get_entvar(touch_ent,var_iuser1);
-				// Fast check
-				new bool:isTouchKnife = get_entvar(touch_ent,var_iuser2) == UNREAL_KNIFE_MAGIC_NUMBER;
-				if (pAttacker != touch_ent && !isTouchKnife)
-				{
-					SetTouch(rune_ent, "");
-					set_entvar(rune_ent, var_velocity, Float:{0.0,0.0,0.0});
-					set_entvar(rune_ent, var_nextthink, get_gametime() + UNREAL_KNIFE_REMOVE_DELAY);
-					SetThink(rune_ent, "KILLME");
-					rg_multidmg_clear();
-					rg_multidmg_add(pInflector, touch_ent, UNREAL_KNIFE_MAX_DMG, DMG_NEVERGIB | DMG_BULLET);
-					rg_multidmg_apply(pAttacker, pAttacker);
-				}
-				else if (isTouchKnife && pTarget != pAttacker)
-				{
-					if (FClassnameIs(touch_ent, UNREAL_KNIFE_AMMO1_CLASSNAME))
-					{
-						KILLME(rune_ent);
-						KILLME(touch_ent);
-					}
-				}
-			}
-			else 
-			{
-				KILLME(rune_ent);
-			}
-		}
-		else 
-		{
-			KILLME(rune_ent);
-		}
-	}
-}
-
-public KILLME(const rune_ent)
-{
-	if (!is_nullent(rune_ent))
-	{
-		set_entvar(rune_ent, var_nextthink, get_gametime());
-		set_entvar(rune_ent, var_flags, FL_KILLME);
-	}
-}
-
-public MAKEGRAVITY(const rune_ent)
-{
-	if (!is_nullent(rune_ent))
-	{
-		new Float:vAngles[3];
-		new Float:vVelocity[3];
-		get_entvar(rune_ent, var_angles, vAngles);
-		get_entvar(rune_ent, var_velocity, vVelocity);
-		vAngles[0]-=1.0;
-		vVelocity[2]-=15.0;
-		set_entvar(rune_ent, var_angles, vAngles);
-		set_entvar(rune_ent, var_velocity, vVelocity);
-		set_entvar(rune_ent, var_nextthink, get_gametime() + 0.1);
-	}
-}
 
 public SecondaryAttack(pItem)
 {
@@ -290,6 +190,8 @@ public SecondaryAttack(pItem)
 		{
 			return HAM_SUPERCEDE;
 		}
+		
+		rh_emit_sound2(pAttacker, 0, CHAN_WEAPON , UNREAL_KNIFE_SOUND_SHOOT, VOL_NORM, ATTN_NORM, 0, PITCH_NORM );
 		
 		new shotammo = 0;
 		
@@ -376,27 +278,148 @@ public SecondaryAttack(pItem)
 	return HAM_IGNORED;
 }
 
-public plugin_precache() {
-
-	precache_generic("sprites/weapon_unrealknife.txt");
-	precache_generic("sprites/unreal_knife.spr");
-
-	UNREAL_KNIFE_SPRITE_AMMO_ID = precache_model(UNREAL_KNIFE_SPRITE_AMMO);
-	
-	precache_model(UNREAL_KNIFE__P_MODEL);
-	UNREAL_KNIFE__W_MODEL_ID = precache_model(UNREAL_KNIFE__W_MODEL);
-	precache_model(UNREAL_KNIFE__V_MODEL);
-	
-	MsgIdWeaponList = get_user_msgid("WeaponList");
-	if (MsgIdWeaponList) 
+public UNREAL_KNIFE_SHOT1(const item, const id, Float:fvOrigin[3], Float:fvVelocity[3], Float:fvAngles[3])
+{
+	new iEnt = rg_create_entity("info_target");
+	if (!iEnt || is_nullent(iEnt))
 	{
-		MsgHookWeaponList = register_message(MsgIdWeaponList, "HookWeaponList");
+		return;
 	}
-	else 
+	
+	set_entvar(iEnt, var_classname, UNREAL_KNIFE_AMMO1_CLASSNAME);
+	
+	set_entvar(iEnt, var_model, UNREAL_KNIFE_W_MODEL);
+	set_entvar(iEnt, var_modelindex, UNREAL_KNIFE_W_MODEL_ID);
+	
+	set_entvar(iEnt, var_solid, SOLID_TRIGGER );
+
+	set_entvar(iEnt, var_movetype, MOVETYPE_FLY);
+	
+	set_entvar(iEnt, var_sequence, 0);
+	set_entvar(iEnt, var_framerate, 1.0);
+	
+	set_entvar(iEnt, var_iuser1, id);
+	set_entvar(iEnt, var_iuser2, UNREAL_KNIFE_MAGIC_NUMBER);
+	set_entvar(iEnt, var_iuser3, item);
+	
+	entity_set_origin(iEnt, fvOrigin);
+
+	set_entvar(iEnt, var_velocity, fvVelocity);
+	
+	static Float:tmpAngles[3];
+	tmpAngles = fvAngles;
+	tmpAngles[0] = 360 - fvAngles[0];
+	
+	// reversed angles
+	set_entvar(iEnt, var_angles, tmpAngles);
+
+	te_create_following_beam(iEnt, UNREAL_KNIFE_SPRITE_AMMO_ID, KNIFE_TAIL_LEN, KNIFE_TAIL_WIDTH, 
+								KNIFE_TAILS_COLOR_RGB[0], KNIFE_TAILS_COLOR_RGB[1], KNIFE_TAILS_COLOR_RGB[2], 200);
+	
+	SetThink(iEnt, "MAKEGRAVITY");
+	SetTouch(iEnt, "TouchAmmo1");
+	
+	set_entvar(iEnt, var_nextthink, get_gametime() + UNREAL_KNIFE_GRAVITY_DELAY);
+}
+
+public TouchAmmo1(const knife_ent, const other_ent)
+{
+	if (!is_nullent(knife_ent))
 	{
-		FwdRegUserMsg = register_forward(FM_RegUserMsg, "RegUserMsg_Post", true);
+		if ( other_ent == 0 || !is_nullent(other_ent) )
+		{
+			new pAttacker = get_entvar(knife_ent,var_iuser1);
+			new pInflector = get_entvar(knife_ent,var_iuser3);
+			if (!is_nullent(pInflector) && is_user_connected(pAttacker))
+			{
+				new pTarget = get_entvar(other_ent,var_iuser1);
+				// Fast check
+				new bool:isTouchKnife = get_entvar(other_ent,var_iuser2) == UNREAL_KNIFE_MAGIC_NUMBER;
+				if (pAttacker != other_ent && !isTouchKnife)
+				{
+					SetTouch(knife_ent, "");
+					set_entvar(knife_ent, var_velocity, Float:{0.0,0.0,0.0});
+					set_entvar(knife_ent, var_nextthink, get_gametime() + UNREAL_KNIFE_REMOVE_DELAY);
+					SetThink(knife_ent, "KILLME");
+					new Float:fHealth = get_entvar(other_ent,var_health);
+					if (fHealth > 0.0)
+					{
+						rg_multidmg_clear();
+						rg_multidmg_add(pInflector, other_ent, UNREAL_KNIFE_MAX_DMG, DMG_NEVERGIB | DMG_BULLET);
+						rg_multidmg_apply(pAttacker, pAttacker);
+						if (fHealth == get_entvar(other_ent,var_health))
+						{
+							rh_emit_sound2(knife_ent, 0, CHAN_BODY , UNREAL_KNIFE_SOUND_TARGET, VOL_NORM, ATTN_NORM, 0, PITCH_NORM );
+						}
+					}
+					else 
+					{
+						rh_emit_sound2(knife_ent, 0, CHAN_BODY , UNREAL_KNIFE_SOUND_TARGET, VOL_NORM, ATTN_NORM, 0, PITCH_NORM );
+					}
+				}
+				else if (isTouchKnife && pTarget != pAttacker)
+				{
+					if (FClassnameIs(other_ent, UNREAL_KNIFE_AMMO1_CLASSNAME))
+					{
+						KILLME(knife_ent);
+						KILLME(other_ent);
+					}
+				}
+			}
+			else 
+			{
+				KILLME(knife_ent);
+			}
+		}
+		else 
+		{
+			KILLME(knife_ent);
+		}
 	}
 }
+
+public KILLME(const knife_ent)
+{
+	if (!is_nullent(knife_ent))
+	{
+		set_entvar(knife_ent, var_nextthink, get_gametime());
+		set_entvar(knife_ent, var_flags, FL_KILLME);
+	}
+}
+
+public MAKEGRAVITY(const knife_ent)
+{
+	if (!is_nullent(knife_ent))
+	{
+		new Float:vAngles[3];
+		new Float:vVelocity[3];
+		get_entvar(knife_ent, var_angles, vAngles);
+		get_entvar(knife_ent, var_velocity, vVelocity);
+		vAngles[0]-=1.0;
+		vVelocity[2]-=15.0;
+		set_entvar(knife_ent, var_angles, vAngles);
+		set_entvar(knife_ent, var_velocity, vVelocity);
+		set_entvar(knife_ent, var_nextthink, get_gametime() + 0.1);
+	}
+}
+
+public IncreaseAmmo(pItem)
+{
+	if (!is_nullent(pItem))
+	{
+		new iAmmo = get_member(pItem, m_Weapon_iClip);
+		
+		if (iAmmo >= UNREAL_KNIFE_MAX_AMMO)
+		{
+			return;
+		}
+		
+		iAmmo++;
+		set_member(pItem, m_Weapon_iClip, iAmmo);
+		set_entvar(pItem, var_nextthink, get_gametime() + UNREAL_KNIFE_RELOAD_RATE);
+	}
+}
+
 
 public CBasePlayerWeapon_CanDeploy(const pItem) {
 
@@ -416,8 +439,8 @@ public CBasePlayerWeapon_DefaultDeploy_Pre(const pItem, szViewModel[], szWeaponM
 
 	if (WeaponIdType:rg_get_iteminfo(pItem,ItemInfo_iId) == UNREAL_KNIFE_FAKE_WEAPONID)
 	{
-		SetHookChainArg(2, ATYPE_STRING, UNREAL_KNIFE__V_MODEL);
-		SetHookChainArg(3, ATYPE_STRING, UNREAL_KNIFE__P_MODEL);
+		SetHookChainArg(2, ATYPE_STRING, UNREAL_KNIFE_V_MODEL);
+		SetHookChainArg(3, ATYPE_STRING, UNREAL_KNIFE_P_MODEL);
 		
 		UTIL_WeaponAnim(pItem, UNREAL_KNIFE_DRAW, 2.0);
 		set_member(pItem, m_Weapon_flNextPrimaryAttack, 1.0);
@@ -449,15 +472,12 @@ public HookWeaponList(const msg_id, const msg_dst, const msg_entity)
 {
 	enum 
 	{
-		arg_name = 1,
-		arg_ammo1,
-		arg_ammo1_max,
-		arg_ammo2,
-		arg_ammo2_max,
-		arg_slot,
-		arg_position,
-		arg_id,
-		arg_flags,
+		arg_ammo2 = 4,
+		arg_ammo2_max = 5,
+		arg_slot = 6,
+		arg_position = 7,
+		arg_id = 8,
+		arg_flags = 9,
 	};
 
 	if (msg_dst != MSG_INIT || WeaponIdType:get_msg_arg_int(arg_id) != WEAPON_KNIFE) 
