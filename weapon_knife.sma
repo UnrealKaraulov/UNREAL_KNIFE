@@ -1,4 +1,5 @@
 #include <amxmodx>
+#include <amxmisc>
 #include <reapi>
 #include <engine>
 #include <fakemeta>
@@ -7,20 +8,45 @@
 #include <xs>
 
 #include <msg_floatstocks>
+
+// Поддержка GAMECMS
+native Array:cmsapi_get_user_services(const index, const szAuth[] = "", const szService[] = "", serviceID = 0, bool:part = false);
  
 new PLUGIN_NAME[] = "UNREAL KNIFE";
-new PLUGIN_VERSION[] = "1.0";
+new PLUGIN_VERSION[] = "1.3";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
+// Количество ножей
 new UNREAL_KNIFE_MAX_AMMO = 10;
+// Урон одного ножа
 new Float:UNREAL_KNIFE_MAX_DMG = 20.0;
+// Частота перезарядки ножей ( чем меньше тем быстрее )
 new Float:UNREAL_KNIFE_RELOAD_RATE = 1.0;
+// Через сколько удалять нож с карты (Если не включен режим поднятия ножей с земли)
 new Float:UNREAL_KNIFE_REMOVE_DELAY = 0.5;
+// Через сколько нож начнет снижать скорость и начнет падать на землю
 new Float:UNREAL_KNIFE_GRAVITY_DELAY = 0.4;
 
+// Скорость ЛКМ атаки (+attack)
+new Float:UNREAL_KNIFE_PRIMARY_ATTACK_DELAY = 0.7;
+// Скорость ПКМ атаки (+attack2)
+new Float:UNREAL_KNIFE_SECONDARY_ATTACK_DELAY = 1.5;
+// Скорость ножа минимальная
+new Float:UNREAL_KNIFE_AMMO_SPEED_MIN = 1000.0;
+// Скорость ножа максимальная
+new Float:UNREAL_KNIFE_AMMO_SPEED_MAX = 1000.0;
+// Цвет хвоста, R G B , от 0 до 255 
 new KNIFE_TAILS_COLOR_RGB[3] = {50,50,50};
+// Длина хвоста
 new KNIFE_TAIL_LEN = 7;
+// Толщина хвоста
 new KNIFE_TAIL_WIDTH = 4;
+// Название услуги GAMECMS для доступа к ножу
+new KNIFE_GAMECMS_NAME[256] = "_unreal_knife";
+// Флаг которому будет доступны ножи ("z" для всех, "" что бы не выдавать)
+new const KNIFE_USER_FLAG[] = "z";
+
+new bool:GAMECMS_SUPPORT = true;
 
 new UNREAL_KNIFE_CLASSNAME[] = "weapon_unrealknife";
 new UNREAL_KNIFE_AMMO1_CLASSNAME[] = "unrealknife_bolt1";
@@ -44,6 +70,7 @@ new UNREAL_KNIFE_SPRITE_AMMO[] = "sprites/laserbeam.spr"
 new UNREAL_KNIFE_SPRITE_AMMO_ID = 0;
 
 new UNREAL_KNIFE_W_MODEL_ID = 0;
+new KNIFE_USER_FLAG_ID = 0;
 
 new WeaponIdType: UNREAL_KNIFE_UNUSED_WEAPONID = WEAPON_GLOCK;
 new WeaponIdType: UNREAL_KNIFE_FAKE_WEAPONID = WeaponIdType:77;
@@ -66,9 +93,13 @@ public plugin_init()
 {
 	register_plugin(PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_AUTHOR);
 	
+	create_cvar("unreal_knife", PLUGIN_VERSION, FCVAR_SERVER | FCVAR_SPONLY);
+	
 	MsgIdAmmoPickup = get_user_msgid("AmmoPickup");
 	
 	register_clcmd(UNREAL_KNIFE_WEAPONNAME, "CmdSelect")
+	
+	register_concmd("give_knife", "CmdGiveUnrealKnife", ADMIN_BAN, "<name or #userid>");
 	
 	RegisterHookChain(RG_CBasePlayer_AddPlayerItem, "AddItem", true);
 	RegisterHookChain(RG_CBasePlayer_GiveAmmo, "CBasePlayer_GiveAmmo_Pre", false);
@@ -78,6 +109,56 @@ public plugin_init()
 	
 	RegisterHookChain(RG_CBasePlayerWeapon_CanDeploy, "CBasePlayerWeapon_CanDeploy");
 	RegisterHookChain(RG_CBasePlayerWeapon_DefaultDeploy, "CBasePlayerWeapon_DefaultDeploy_Pre");
+	
+	KNIFE_USER_FLAG_ID = strlen(KNIFE_USER_FLAG) > 0 ? read_flags(KNIFE_USER_FLAG) : 0;
+}
+
+public CmdGiveUnrealKnife(id, level, cid)
+{
+	if (!cmd_access(id, level, cid, 2))
+		return PLUGIN_HANDLED;
+		
+	new arg[32];
+	read_argv(1, arg, charsmax(arg));
+	new player = cmd_target(id, arg, CMDTARGET_NO_BOTS);
+	if (!player)
+		return PLUGIN_HANDLED;
+	
+	new username[32];
+	new username2[32];
+	new ipaddr[32];
+	new steamid[32];
+	
+	get_user_name(id,username,charsmax(username));
+	get_user_name(player,username2,charsmax(username2));
+	get_user_ip(id,ipaddr,charsmax(ipaddr));
+	get_user_authid(id,steamid,charsmax(steamid));
+	
+	
+	log_amx("User %s[%s/%s] tried to give knife for %s",username,ipaddr,steamid,username2);
+
+	giveKnife(player);
+
+	return PLUGIN_HANDLED;
+}
+
+public plugin_natives() 
+{
+	set_native_filter("native_filter")
+}
+
+public native_filter(const name[], index, trap) 
+{
+	if (trap)
+		return PLUGIN_CONTINUE;
+		
+	if(equal(name, "cmsapi_get_user_services"))
+	{
+		GAMECMS_SUPPORT = false;
+		return PLUGIN_HANDLED;
+	}
+
+	return PLUGIN_CONTINUE
 }
 
 
@@ -140,13 +221,11 @@ public PrimaryAttack(pItem)
 		
 		set_member(pItem, m_Weapon_iClip, iAmmo);
 		
-		UTIL_WeaponAnim(pItem, UNREAL_KNIFE_MIDATTACK1HIT, 0.7);
-		
-		set_member(pItem, m_Weapon_flNextPrimaryAttack, 0.7);
-		set_member(pItem, m_Weapon_flNextSecondaryAttack, 0.7);
-		set_member(pItem, m_Weapon_flTimeWeaponIdle, 0.7);
-		
-		set_member(pAttacker, m_flTimeWeaponIdle, 0.7);
+		UTIL_WeaponAnim(pItem, UNREAL_KNIFE_MIDATTACK1HIT, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flNextPrimaryAttack, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flNextSecondaryAttack, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flTimeWeaponIdle, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
+		set_member(pAttacker, m_flTimeWeaponIdle, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
 		
 		set_entvar(pItem, var_nextthink, get_gametime() + (UNREAL_KNIFE_RELOAD_RATE * 2.0));
 		SetThink(pItem,"IncreaseAmmo");
@@ -165,7 +244,7 @@ public PrimaryAttack(pItem)
 			vOrigin[i] = (vMaxs[i] + vMins[i]) * 0.5 + vOrigin[i];
 		
 		get_entvar(pAttacker,var_v_angle,vAngles);
-		velocity_by_angle(vAngles, 1000.0, vVelocity);
+		velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 		
 		UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 		
@@ -203,15 +282,13 @@ public SecondaryAttack(pItem)
 		
 		set_member(pItem, m_Weapon_iClip, iAmmo);
 		
-		UTIL_WeaponAnim(pItem, UNREAL_KNIFE_STABHIT, 2.0);
+		UTIL_WeaponAnim(pItem, UNREAL_KNIFE_STABHIT, UNREAL_KNIFE_SECONDARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flNextPrimaryAttack, UNREAL_KNIFE_SECONDARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flNextSecondaryAttack, UNREAL_KNIFE_SECONDARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flTimeWeaponIdle, UNREAL_KNIFE_SECONDARY_ATTACK_DELAY);
+		set_member(pAttacker, m_flTimeWeaponIdle, UNREAL_KNIFE_SECONDARY_ATTACK_DELAY);
 		
-		set_member(pItem, m_Weapon_flNextPrimaryAttack, 1.5);
-		set_member(pItem, m_Weapon_flNextSecondaryAttack, 2.0);
-		set_member(pItem, m_Weapon_flTimeWeaponIdle, 2.0);
-		
-		set_member(pAttacker, m_flTimeWeaponIdle, 2.0);
-		
-		set_entvar(pItem, var_nextthink, get_gametime() + 2.0);
+		set_entvar(pItem, var_nextthink, get_gametime() + (UNREAL_KNIFE_RELOAD_RATE * 2.0));
 		SetThink(pItem,"IncreaseAmmo");
 		
 		new Float:vVelocity[3] = {0.0,0.0,0.0};
@@ -232,43 +309,43 @@ public SecondaryAttack(pItem)
 		if (shotammo == 2)
 		{
 			vAngles[1] -= 2.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 			
 			vAngles[1] += 4.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 		}
 		else if (shotammo == 3)
 		{
 			vAngles[1] -= 3.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 			
 			vAngles[1] += 3.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 		
 			vAngles[1] += 3.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 		}
 		else if (shotammo == 4)
 		{
 			vAngles[1] -= 1.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 			
 			vAngles[1] -= 2.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 			
 			vAngles[1] += 4.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 			
 			vAngles[1] += 2.0;
-			velocity_by_angle(vAngles, 1000.0, vVelocity);
+			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
 			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
 		}
 		
@@ -442,10 +519,10 @@ public CBasePlayerWeapon_DefaultDeploy_Pre(const pItem, szViewModel[], szWeaponM
 		SetHookChainArg(2, ATYPE_STRING, UNREAL_KNIFE_V_MODEL);
 		SetHookChainArg(3, ATYPE_STRING, UNREAL_KNIFE_P_MODEL);
 		
-		UTIL_WeaponAnim(pItem, UNREAL_KNIFE_DRAW, 2.0);
-		set_member(pItem, m_Weapon_flNextPrimaryAttack, 1.0);
-		set_member(pItem, m_Weapon_flNextSecondaryAttack, 1.0);
-		set_member(pItem, m_Weapon_flTimeWeaponIdle, 1.0);
+		UTIL_WeaponAnim(pItem, UNREAL_KNIFE_DRAW, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flNextPrimaryAttack, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flNextSecondaryAttack, UNREAL_KNIFE_SECONDARY_ATTACK_DELAY);
+		set_member(pItem, m_Weapon_flTimeWeaponIdle, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
 		
 		
 		new pAttacker = get_entvar(pItem, var_owner);
@@ -454,7 +531,7 @@ public CBasePlayerWeapon_DefaultDeploy_Pre(const pItem, szViewModel[], szWeaponM
 			return HC_CONTINUE;
 			
 		
-		set_member(pAttacker, m_flTimeWeaponIdle, 1.0);
+		set_member(pAttacker, m_flTimeWeaponIdle, UNREAL_KNIFE_PRIMARY_ATTACK_DELAY);
 	}
 	return HC_CONTINUE;
 }
@@ -595,8 +672,17 @@ public AddItem(id, pItem)
 		return HC_CONTINUE;
 	
 	if (get_member(pItem, m_iId) == WEAPON_KNIFE)
-		giveKnife(id);
-	
+	{
+		if (KNIFE_USER_FLAG_ID == ADMIN_USER || 
+			(KNIFE_USER_FLAG_ID != 0 && get_user_flags(id) & KNIFE_USER_FLAG_ID == KNIFE_USER_FLAG_ID))
+		{
+			giveKnife(id);
+		}
+		else if (GAMECMS_SUPPORT && cmsapi_get_user_services(id, "", KNIFE_GAMECMS_NAME))
+		{
+			giveKnife(id);
+		}
+	}
 	return HC_CONTINUE;
 }
 
@@ -677,4 +763,9 @@ stock velocity_by_angle(Float:fvAngles[3],Float:fVelocity, Float:fvAnglesOut[3])
 	engfunc(EngFunc_MakeVectors, tmpVector);
 	global_get(glb_v_forward, tmpVector);
 	xs_vec_mul_scalar(tmpVector, fVelocity, fvAnglesOut)
+}
+
+stock Float:get_next_velocity_speed()
+{
+	return random_float(UNREAL_KNIFE_AMMO_SPEED_MIN,UNREAL_KNIFE_AMMO_SPEED_MAX);
 }
