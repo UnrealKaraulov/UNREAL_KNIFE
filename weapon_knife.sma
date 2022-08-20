@@ -9,7 +9,7 @@
 #include <msg_floatstocks>
  
 new PLUGIN_NAME[] = "UNREAL KNIFE";
-new PLUGIN_VERSION[] = "1.1";
+new PLUGIN_VERSION[] = "1.0";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 new UNREAL_KNIFE_MAX_AMMO = 10;
