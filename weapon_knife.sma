@@ -13,7 +13,7 @@
 native Array:cmsapi_get_user_services(const index, const szAuth[] = "", const szService[] = "", serviceID = 0, bool:part = false);
  
 new PLUGIN_NAME[] = "UNREAL KNIFE";
-new PLUGIN_VERSION[] = "1.3";
+new PLUGIN_VERSION[] = "1.4";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 // Количество ножей
@@ -42,7 +42,7 @@ new KNIFE_TAIL_LEN = 7;
 // Толщина хвоста
 new KNIFE_TAIL_WIDTH = 4;
 // Название услуги GAMECMS для доступа к ножу
-new KNIFE_GAMECMS_NAME[256] = "_unreal_knife";
+new KNIFE_GAMECMS_NAME[] = "_unreal_knife";
 // Флаг которому будет доступны ножи ("z" для всех, "" что бы не выдавать)
 new const KNIFE_USER_FLAG[] = "z";
 
@@ -365,11 +365,10 @@ public UNREAL_KNIFE_SHOT1(const item, const id, Float:fvOrigin[3], Float:fvVeloc
 	
 	set_entvar(iEnt, var_classname, UNREAL_KNIFE_AMMO1_CLASSNAME);
 	
-	set_entvar(iEnt, var_model, UNREAL_KNIFE_W_MODEL);
-	set_entvar(iEnt, var_modelindex, UNREAL_KNIFE_W_MODEL_ID);
+	entity_set_model(iEnt,UNREAL_KNIFE_W_MODEL);
+	entity_set_origin(iEnt,fvOrigin);
 	
 	set_entvar(iEnt, var_solid, SOLID_TRIGGER );
-
 	set_entvar(iEnt, var_movetype, MOVETYPE_FLY);
 	
 	set_entvar(iEnt, var_sequence, 0);
@@ -379,7 +378,6 @@ public UNREAL_KNIFE_SHOT1(const item, const id, Float:fvOrigin[3], Float:fvVeloc
 	set_entvar(iEnt, var_iuser2, UNREAL_KNIFE_MAGIC_NUMBER);
 	set_entvar(iEnt, var_iuser3, item);
 	
-	entity_set_origin(iEnt, fvOrigin);
 
 	set_entvar(iEnt, var_velocity, fvVelocity);
 	
@@ -419,10 +417,10 @@ public TouchAmmo1(const knife_ent, const other_ent)
 					set_entvar(knife_ent, var_nextthink, get_gametime() + UNREAL_KNIFE_REMOVE_DELAY);
 					SetThink(knife_ent, "KILLME");
 					new Float:fHealth = get_entvar(other_ent,var_health);
-					if (fHealth > 0.0)
+					if (get_entvar(other_ent,var_takedamage) != DAMAGE_NO)
 					{
 						rg_multidmg_clear();
-						rg_multidmg_add(pInflector, other_ent, UNREAL_KNIFE_MAX_DMG, DMG_NEVERGIB | DMG_BULLET);
+						rg_multidmg_add(pAttacker, other_ent, UNREAL_KNIFE_MAX_DMG, DMG_BULLET);
 						rg_multidmg_apply(pAttacker, pAttacker);
 						if (fHealth == get_entvar(other_ent,var_health))
 						{
