@@ -10,7 +10,7 @@
 #include <msg_floatstocks>
 
 // Активировать поддержку RUNEMOD
-//#define ENABLE_RUNEMOD_SUPPORT
+// #define ENABLE_RUNEMOD_SUPPORT
 
 
 #if defined ENABLE_RUNEMOD_SUPPORT
@@ -27,6 +27,10 @@ new PLUGIN_AUTHOR[] = "Karaulov";
 
 // Количество ножей
 new UNREAL_KNIFE_MAX_AMMO = 10;
+// Максимальное количество ножей вылетающих при ударе правой мышью
+new UNREAL_KNIFE_MAX_AMMO_STAB = 3;
+// Угол между вылетающими ножами
+new Float:UNREAL_KNIFE_ANGLE_STEP = 2.0; 
 // Урон одного ножа
 new Float:UNREAL_KNIFE_MAX_DMG = 24.5;
 // Частота перезарядки ножей ( чем меньше тем быстрее )
@@ -180,6 +184,13 @@ public plugin_precache()
 	}
 }
 
+#if defined ENABLE_RUNEMOD_SUPPORT
+public rm_give_rune(id)
+{
+	return giveKnife(id) ? RUNE_PICKUP_SUCCESS : NO_RUNE_PICKUP_SUCCESS;
+}
+#endif
+
 public plugin_natives() 
 {
 	set_native_filter("native_filter")
@@ -207,6 +218,7 @@ public CmdGiveUnrealKnife(id, level, cid)
 	new arg[32];
 	read_argv(1, arg, charsmax(arg));
 	new player = cmd_target(id, arg, CMDTARGET_NO_BOTS);
+	
 	if (!player)
 		return PLUGIN_HANDLED;
 	
@@ -230,11 +242,13 @@ public CmdGiveUnrealKnife(id, level, cid)
 
 public CmdSelect(const id)
 {
-	if(!is_user_alive(id)) return PLUGIN_HANDLED;
+	if(!is_user_alive(id)) 
+		return PLUGIN_HANDLED;
 
 	new item = rg_get_player_item(id, UNREAL_KNIFE_CLASSNAME, KNIFE_SLOT);
 
-	if(item != 0 && get_member(id, m_pActiveItem) != item) rg_switch_weapon(id, item);
+	if(item != 0 && get_member(id, m_pActiveItem) != item) 
+		rg_switch_weapon(id, item);
 
 	return PLUGIN_HANDLED;
 }
@@ -312,12 +326,12 @@ public SecondaryAttack(pItem)
 		
 		rh_emit_sound2(pAttacker, 0, CHAN_WEAPON , UNREAL_KNIFE_SOUND_SHOOT, VOL_NORM, ATTN_NORM, 0, PITCH_NORM );
 		
-		new shotammo = 0;
+		new iShots = 0;
 		
-		while(shotammo < 4 && iAmmo > 0)
+		while(iShots < UNREAL_KNIFE_MAX_AMMO_STAB && iAmmo > 0)
 		{
 			iAmmo--;
-			shotammo++;
+			iShots++;
 		}	
 		
 		set_member(pItem, m_Weapon_iClip, iAmmo);
@@ -346,50 +360,16 @@ public SecondaryAttack(pItem)
 		
 		get_entvar(pAttacker,var_v_angle,vAngles);
 		
-		if (shotammo == 2)
+		new Float:startAngle = (iShots % 2 == 0) ? -(iShots / 2) * UNREAL_KNIFE_ANGLE_STEP + UNREAL_KNIFE_ANGLE_STEP / 2 : -(iShots / 2) * UNREAL_KNIFE_ANGLE_STEP;
+
+		for (new i = 0; i < iShots; i++)
 		{
-			vAngles[1] -= 2.0;
+			vAngles[1] += startAngle + i * UNREAL_KNIFE_ANGLE_STEP;
 			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-			
-			vAngles[1] += 4.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
+			UNREAL_KNIFE_SHOT1(pItem, pAttacker, vOrigin, vVelocity, vAngles);
+			vAngles[1] -= startAngle + i * UNREAL_KNIFE_ANGLE_STEP;
 		}
-		else if (shotammo == 3)
-		{
-			vAngles[1] -= 3.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-			
-			vAngles[1] += 3.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-		
-			vAngles[1] += 3.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-		}
-		else if (shotammo == 4)
-		{
-			vAngles[1] -= 1.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-			
-			vAngles[1] -= 2.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-			
-			vAngles[1] += 4.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-			
-			vAngles[1] += 2.0;
-			velocity_by_angle(vAngles, get_next_velocity_speed(), vVelocity);
-			UNREAL_KNIFE_SHOT1(pItem, pAttacker,vOrigin,vVelocity,vAngles);
-		}
-		
-		
+
 		return HAM_SUPERCEDE;
 	}
 	return HAM_IGNORED;
@@ -615,8 +595,10 @@ public HookWeaponList(const msg_id, const msg_dst, const msg_entity)
 	return PLUGIN_CONTINUE;
 }
 
-public CBasePlayer_GiveAmmo_Pre(const id, const amount, const name[]) {
-	if (strcmp(name, UNREAL_KNIFE_AMMO_NAME) != 0) {
+public CBasePlayer_GiveAmmo_Pre(const id, const amount, const name[]) 
+{
+	if (strcmp(name, UNREAL_KNIFE_AMMO_NAME) != 0) 
+	{
 		return HC_CONTINUE;
 	}
 
@@ -625,17 +607,19 @@ public CBasePlayer_GiveAmmo_Pre(const id, const amount, const name[]) {
 	return HC_SUPERCEDE;
 }
 
-public giveKnife(const id) 
+bool:giveKnife(const id, bool:fill_ammo = true) 
 {
 	new item = rg_get_player_item(id, UNREAL_KNIFE_CLASSNAME, KNIFE_SLOT);
-	if (item != 0) {
+	if (item != 0) 
+	{
 		set_member(item, m_Weapon_iClip, UNREAL_KNIFE_MAX_AMMO);
-		return item;
+		return fill_ammo;
 	}
 
 	item = rg_create_entity(UNREAL_KNIFE_WEAPON, false);
-	if (is_nullent(item)) {
-		return NULLENT;
+	if (is_nullent(item)) 
+	{
+		return false;
 	}
 
 	new Float:origin[3];
@@ -663,13 +647,14 @@ public giveKnife(const id)
 
 	dllfunc(DLLFunc_Touch, item, id);
 
-	if (get_entvar(item, var_owner) != id) {
+	if (get_entvar(item, var_owner) != id) 
+	{
 		set_entvar(item, var_flags, FL_KILLME);
-		return NULLENT;
+		return false;
 	}
 	
 	set_member(item, m_Weapon_iClip, UNREAL_KNIFE_MAX_AMMO);
-	return item;
+	return true;
 }
  
 public AddItem(id, pItem)
@@ -692,17 +677,17 @@ public AddItem(id, pItem)
 	return HC_CONTINUE;
 }
 
-
-
 stock giveAmmo(const id, const amount, const ammo, const maxammo) 
 {
-	if (!is_user_connected(id) || get_entvar(id, var_flags) & FL_SPECTATOR) {
+	if (!is_user_connected(id) || get_entvar(id, var_flags) & FL_SPECTATOR) 
+	{
 		return;
 	}
 
 	new count = get_member(id, m_rgAmmo, ammo);
 	new addammo = min(amount, maxammo - count);
-	if (addammo < 1) {
+	if (addammo < 1) 
+	{
 		return;
 	}
 
@@ -714,11 +699,14 @@ stock giveAmmo(const id, const amount, const ammo, const maxammo)
 	message_end();
 }
 
-stock rg_get_player_item(const id, const classname[], const InventorySlotType:slot = NONE_SLOT) {
+stock rg_get_player_item(const id, const classname[], const InventorySlotType:slot = NONE_SLOT) 
+{
 	new item = get_member(id, m_rgpPlayerItems, slot);
 	
-	while (!is_nullent(item)) {
-		if (FClassnameIs(item, classname)) {
+	while (!is_nullent(item)) 
+	{
+		if (FClassnameIs(item, classname)) 
+		{
 			return item;
 		}
 		item = get_member(item, m_pNext);
@@ -744,16 +732,20 @@ stock PlayWeaponAnim(pItem, iAnim) {
 	
 	SendPlayerWeaponAnim(pPlayer, pItem, iAnim);
 
-	for (new pSpectator = 1; pSpectator <= MaxClients; pSpectator++) {
-		if (!is_user_connected(pSpectator)) {
+	for (new pSpectator = 1; pSpectator <= MaxClients; pSpectator++) 
+	{
+		if (!is_user_connected(pSpectator)) 
+		{
 			continue;
 		}
 
-		if (get_entvar(pSpectator, var_iuser1) != OBS_IN_EYE) {
+		if (get_entvar(pSpectator, var_iuser1) != OBS_IN_EYE) 
+		{
 			continue;
 		}
 
-		if (get_entvar(pSpectator, var_iuser2) != pPlayer) {
+		if (get_entvar(pSpectator, var_iuser2) != pPlayer) 
+		{
 			continue;
 		}
 
@@ -761,7 +753,8 @@ stock PlayWeaponAnim(pItem, iAnim) {
 	}
 }
 
-stock UTIL_WeaponAnim(pItem, iSequence, Float:flDuration) {
+stock UTIL_WeaponAnim(pItem, iSequence, Float:flDuration) 
+{
 	PlayWeaponAnim(pItem, iSequence);
 	set_member(pItem, m_Weapon_flTimeWeaponIdle, flDuration);
 }
