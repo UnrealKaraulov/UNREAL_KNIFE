@@ -89,6 +89,8 @@ new KNIFE_USER_FLAG_ID = 0;
 // Например: WeaponIdType:31 (тоже не существует как и WEAPON_GLOCK) 
 // или же WEAPON_SG550 и WEAPON_G3SG1 ( которые обычно запрещенны на пабликах )
 new WeaponIdType: UNREAL_KNIFE_UNUSED_WEAPONID = WeaponIdType:31;
+
+// "Магическое число" - новый номер оружия, если используется в другом плагине то изменить на любой другой например 78
 new WeaponIdType: UNREAL_KNIFE_FAKE_WEAPONID = WeaponIdType:77;
 
 new MsgIdWeaponList,MsgIdAmmoPickup, FwdRegUserMsg, MsgHookWeaponList;
