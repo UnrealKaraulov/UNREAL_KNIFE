@@ -12,7 +12,6 @@
 // Активировать поддержку RUNEMOD
 // #define ENABLE_RUNEMOD_SUPPORT
 
-
 #if defined ENABLE_RUNEMOD_SUPPORT
 	#include <rm_api>
 	new UNREAL_KNIFE_W_MODEL_ID = 0;
@@ -22,7 +21,7 @@
 native Array:cmsapi_get_user_services(const index, const szAuth[] = "", const szService[] = "", serviceID = 0, bool:part = false);
  
 new PLUGIN_NAME[] = "UNREAL KNIFE";
-new PLUGIN_VERSION[] = "1.5";
+new PLUGIN_VERSION[] = "1.5.1";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 // Количество ножей
@@ -388,6 +387,7 @@ public UNREAL_KNIFE_SHOT1(const item, const id, Float:fvOrigin[3], Float:fvVeloc
 	set_entvar(iEnt, var_classname, UNREAL_KNIFE_AMMO1_CLASSNAME);
 	
 	entity_set_model(iEnt,UNREAL_KNIFE_W_MODEL);
+	engfunc(EngFunc_SetSize, iEnt, Float:{-1.0, -1.0, -1.0}, Float:{1.0, 1.0, 1.0});
 	entity_set_origin(iEnt,fvOrigin);
 	
 	set_entvar(iEnt, var_solid, SOLID_TRIGGER );
