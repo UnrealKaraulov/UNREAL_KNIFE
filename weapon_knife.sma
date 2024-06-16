@@ -61,7 +61,7 @@ new KNIFE_USER_FLAG[] = "z";
 new const bool:KNIFE_SET_CUSTOM_SIZE = true;
 
 // Если нужно отключить поддержку GAMECMS введите false
-new const bool:KNIFE_GAMECMS_SUPPORT = true;
+new bool:KNIFE_GAMECMS_SUPPORT = true;
 
 new UNREAL_KNIFE_CLASSNAME[] = "weapon_unrealknife";
 new UNREAL_KNIFE_AMMO1_CLASSNAME[] = "unrealknife_bolt1";
