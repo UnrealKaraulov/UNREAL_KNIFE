@@ -57,7 +57,11 @@ new KNIFE_GAMECMS_NAME[] = "_unreal_knife";
 // Флаг которому будет доступны ножи ("z" для всех, "" что бы не выдавать)
 new KNIFE_USER_FLAG[] = "z";
 
-new bool:GAMECMS_SUPPORT = true;
+// Если нужно отключить установку кастомного размера установите false
+new const bool:KNIFE_SET_CUSTOM_SIZE = true;
+
+// Если нужно отключить поддержку GAMECMS введите false
+new const bool:KNIFE_GAMECMS_SUPPORT = true;
 
 new UNREAL_KNIFE_CLASSNAME[] = "weapon_unrealknife";
 new UNREAL_KNIFE_AMMO1_CLASSNAME[] = "unrealknife_bolt1";
@@ -204,7 +208,7 @@ public native_filter(const name[], index, trap)
 		
 	if(equal(name, "cmsapi_get_user_services"))
 	{
-		GAMECMS_SUPPORT = false;
+		KNIFE_GAMECMS_SUPPORT = false;
 		return PLUGIN_HANDLED;
 	}
 
@@ -387,7 +391,8 @@ public UNREAL_KNIFE_SHOT1(const item, const id, Float:fvOrigin[3], Float:fvVeloc
 	set_entvar(iEnt, var_classname, UNREAL_KNIFE_AMMO1_CLASSNAME);
 	
 	entity_set_model(iEnt,UNREAL_KNIFE_W_MODEL);
-	engfunc(EngFunc_SetSize, iEnt, Float:{-1.0, -1.0, -1.0}, Float:{1.0, 1.0, 1.0});
+	if (KNIFE_SET_CUSTOM_SIZE)
+		engfunc(EngFunc_SetSize, iEnt, Float:{-1.0, -1.0, -1.0}, Float:{1.0, 1.0, 1.0});
 	entity_set_origin(iEnt,fvOrigin);
 	
 	set_entvar(iEnt, var_solid, SOLID_TRIGGER );
@@ -671,7 +676,7 @@ public AddItem(id, pItem)
 		{
 			giveKnife(id);
 		}
-		else if (GAMECMS_SUPPORT && cmsapi_get_user_services(id, "", KNIFE_GAMECMS_NAME))
+		else if (KNIFE_GAMECMS_SUPPORT && cmsapi_get_user_services(id, "", KNIFE_GAMECMS_NAME))
 		{
 			giveKnife(id);
 		}
