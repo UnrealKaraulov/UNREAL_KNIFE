@@ -9,11 +9,20 @@
 
 #include <msg_floatstocks>
 
+// Активировать поддержку RUNEMOD
+//#define ENABLE_RUNEMOD_SUPPORT
+
+
+#if defined ENABLE_RUNEMOD_SUPPORT
+	#include <rm_api>
+	new UNREAL_KNIFE_W_MODEL_ID = 0;
+#endif
+
 // Поддержка GAMECMS
 native Array:cmsapi_get_user_services(const index, const szAuth[] = "", const szService[] = "", serviceID = 0, bool:part = false);
  
 new PLUGIN_NAME[] = "UNREAL KNIFE";
-new PLUGIN_VERSION[] = "1.4";
+new PLUGIN_VERSION[] = "1.5";
 new PLUGIN_AUTHOR[] = "Karaulov";
 
 // Количество ножей
@@ -26,7 +35,6 @@ new Float:UNREAL_KNIFE_RELOAD_RATE = 1.0;
 new Float:UNREAL_KNIFE_REMOVE_DELAY = 0.5;
 // Через сколько нож начнет снижать скорость и начнет падать на землю
 new Float:UNREAL_KNIFE_GRAVITY_DELAY = 0.4;
-
 // Скорость ЛКМ атаки (+attack)
 new Float:UNREAL_KNIFE_PRIMARY_ATTACK_DELAY = 0.7;
 // Скорость ПКМ атаки (+attack2)
@@ -44,35 +52,39 @@ new KNIFE_TAIL_WIDTH = 4;
 // Название услуги GAMECMS для доступа к ножу
 new KNIFE_GAMECMS_NAME[] = "_unreal_knife";
 // Флаг которому будет доступны ножи ("z" для всех, "" что бы не выдавать)
-new const KNIFE_USER_FLAG[] = "z";
+new KNIFE_USER_FLAG[] = "z";
 
 new bool:GAMECMS_SUPPORT = true;
 
 new UNREAL_KNIFE_CLASSNAME[] = "weapon_unrealknife";
 new UNREAL_KNIFE_AMMO1_CLASSNAME[] = "unrealknife_bolt1";
-new UNREAL_KNIFE_WEAPONNAME[] = "weapon_unrealknife";
+
+// Название оружия в движке, не менять т.к влияет и на путь к спрайту
+new const UNREAL_KNIFE_WEAPONNAME[] = "weapon_unrealknife";
 
 new UNREAL_KNIFE_MAGIC_NUMBER = 0xDEAD1111;
 
 new UNREAL_KNIFE_WEAPON[] = "weapon_knife";
 
-new const UNREAL_KNIFE_AMMO_NAME[] = "KnifeAmmo";
-new const UNREAL_KNIFE_AMMO_ID = 16;
+new UNREAL_KNIFE_AMMO_NAME[] = "KnifeAmmo";
+new UNREAL_KNIFE_AMMO_ID = 16;
 
-new const UNREAL_KNIFE_P_MODEL[] = "models/rm_reloaded/p_unreknife.mdl";
-new const UNREAL_KNIFE_V_MODEL[] = "models/rm_reloaded/v_unreknife.mdl";
-new const UNREAL_KNIFE_W_MODEL[] = "models/rm_reloaded/w_unreknife.mdl";
+new UNREAL_KNIFE_P_MODEL[] = "models/rm_reloaded/p_unreknife.mdl";
+new UNREAL_KNIFE_V_MODEL[] = "models/rm_reloaded/v_unreknife.mdl";
+new UNREAL_KNIFE_W_MODEL[] = "models/rm_reloaded/w_unreknife.mdl";
 
-new const UNREAL_KNIFE_SOUND_TARGET[] = "weapons/knife_deploy1.wav";
-new const UNREAL_KNIFE_SOUND_SHOOT[] = "weapons/knife_slash1.wav";
+new UNREAL_KNIFE_SOUND_TARGET[] = "weapons/knife_deploy1.wav";
+new UNREAL_KNIFE_SOUND_SHOOT[] = "weapons/knife_slash1.wav";
 
 new UNREAL_KNIFE_SPRITE_AMMO[] = "sprites/laserbeam.spr"
 new UNREAL_KNIFE_SPRITE_AMMO_ID = 0;
 
-new UNREAL_KNIFE_W_MODEL_ID = 0;
 new KNIFE_USER_FLAG_ID = 0;
 
-new WeaponIdType: UNREAL_KNIFE_UNUSED_WEAPONID = WEAPON_GLOCK;
+// Жертвовать "несуществующим" глоком WEAPON_GLOCK как в других кастом оружиях или же выберите другое
+// Например: WeaponIdType:31 (тоже не существует как и WEAPON_GLOCK) 
+// или же WEAPON_SG550 и WEAPON_G3SG1 ( которые обычно запрещенны на пабликах )
+new WeaponIdType: UNREAL_KNIFE_UNUSED_WEAPONID = WeaponIdType:31;
 new WeaponIdType: UNREAL_KNIFE_FAKE_WEAPONID = WeaponIdType:77;
 
 new MsgIdWeaponList,MsgIdAmmoPickup, FwdRegUserMsg, MsgHookWeaponList;
@@ -94,6 +106,26 @@ public plugin_init()
 	register_plugin(PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_AUTHOR);
 	
 	create_cvar("unreal_knife", PLUGIN_VERSION, FCVAR_SERVER | FCVAR_SPONLY);
+
+	
+#if defined ENABLE_RUNEMOD_SUPPORT
+	/* Чтение конфигурации */
+	rm_read_cfg_str("RM_UNREAL_KNIFE","RUNE_NAME","Метательный нож",PLUGIN_NAME,charsmax(PLUGIN_NAME));
+	rm_read_cfg_str("RM_UNREAL_KNIFE","RUNE_DESCRIPTION","Дает игроку Метательный нож",PLUGIN_AUTHOR,charsmax(PLUGIN_AUTHOR));
+
+	/* Регистрация руны */
+	rm_register_rune(PLUGIN_NAME, PLUGIN_AUTHOR,Float:{0.0,100.0,0.0}, UNREAL_KNIFE_W_MODEL, _,UNREAL_KNIFE_W_MODEL_ID);
+	rm_base_use_rune_as_item( );
+	
+	new cost = 3100;
+	rm_read_cfg_int("RM_UNREAL_KNIFE","COST_MONEY",cost,cost);
+	rm_base_set_rune_cost(cost);
+	
+	// Максимальное количество предметов/рун которые могут быть на карте в одно время
+	new max_count = 10;
+	rm_read_cfg_int("RM_UNREAL_KNIFE","MAX_COUNT_ON_MAP",max_count,max_count);
+	rm_base_set_max_count( max_count );
+#endif
 	
 	MsgIdAmmoPickup = get_user_msgid("AmmoPickup");
 	
@@ -111,6 +143,59 @@ public plugin_init()
 	RegisterHookChain(RG_CBasePlayerWeapon_DefaultDeploy, "CBasePlayerWeapon_DefaultDeploy_Pre");
 	
 	KNIFE_USER_FLAG_ID = strlen(KNIFE_USER_FLAG) > 0 ? read_flags(KNIFE_USER_FLAG) : 0;
+
+}
+
+public plugin_precache() 
+{
+	new sprite_path[64];
+	formatex(sprite_path, charsmax(sprite_path), "sprites/%s.txt", UNREAL_KNIFE_WEAPONNAME);
+	precache_generic(sprite_path);
+	precache_generic("sprites/unreal_knife.spr");
+	
+	precache_sound(UNREAL_KNIFE_SOUND_TARGET);
+	precache_sound(UNREAL_KNIFE_SOUND_SHOOT);
+
+	UNREAL_KNIFE_SPRITE_AMMO_ID = precache_model(UNREAL_KNIFE_SPRITE_AMMO);
+	
+	precache_model(UNREAL_KNIFE_P_MODEL);
+	
+#if defined ENABLE_RUNEMOD_SUPPORT
+	UNREAL_KNIFE_W_MODEL_ID = precache_model(UNREAL_KNIFE_W_MODEL);
+#else 
+	precache_model(UNREAL_KNIFE_W_MODEL);
+#endif
+
+	precache_model(UNREAL_KNIFE_V_MODEL);
+	
+	MsgIdWeaponList = get_user_msgid("WeaponList");
+	if (MsgIdWeaponList) 
+	{
+		MsgHookWeaponList = register_message(MsgIdWeaponList, "HookWeaponList");
+	}
+	else 
+	{
+		FwdRegUserMsg = register_forward(FM_RegUserMsg, "RegUserMsg_Post", true);
+	}
+}
+
+public plugin_natives() 
+{
+	set_native_filter("native_filter")
+}
+
+public native_filter(const name[], index, trap) 
+{
+	if (trap)
+		return PLUGIN_CONTINUE;
+		
+	if(equal(name, "cmsapi_get_user_services"))
+	{
+		GAMECMS_SUPPORT = false;
+		return PLUGIN_HANDLED;
+	}
+
+	return PLUGIN_CONTINUE
 }
 
 public CmdGiveUnrealKnife(id, level, cid)
@@ -140,51 +225,6 @@ public CmdGiveUnrealKnife(id, level, cid)
 	giveKnife(player);
 
 	return PLUGIN_HANDLED;
-}
-
-public plugin_natives() 
-{
-	set_native_filter("native_filter")
-}
-
-public native_filter(const name[], index, trap) 
-{
-	if (trap)
-		return PLUGIN_CONTINUE;
-		
-	if(equal(name, "cmsapi_get_user_services"))
-	{
-		GAMECMS_SUPPORT = false;
-		return PLUGIN_HANDLED;
-	}
-
-	return PLUGIN_CONTINUE
-}
-
-
-public plugin_precache() {
-
-	precache_generic("sprites/weapon_unrealknife.txt");
-	precache_generic("sprites/unreal_knife.spr");
-	
-	precache_sound(UNREAL_KNIFE_SOUND_TARGET);
-	precache_sound(UNREAL_KNIFE_SOUND_SHOOT);
-
-	UNREAL_KNIFE_SPRITE_AMMO_ID = precache_model(UNREAL_KNIFE_SPRITE_AMMO);
-	
-	precache_model(UNREAL_KNIFE_P_MODEL);
-	UNREAL_KNIFE_W_MODEL_ID = precache_model(UNREAL_KNIFE_W_MODEL);
-	precache_model(UNREAL_KNIFE_V_MODEL);
-	
-	MsgIdWeaponList = get_user_msgid("WeaponList");
-	if (MsgIdWeaponList) 
-	{
-		MsgHookWeaponList = register_message(MsgIdWeaponList, "HookWeaponList");
-	}
-	else 
-	{
-		FwdRegUserMsg = register_forward(FM_RegUserMsg, "RegUserMsg_Post", true);
-	}
 }
 
 public CmdSelect(const id)
@@ -252,7 +292,6 @@ public PrimaryAttack(pItem)
 	}
 	return HAM_IGNORED;
 }
-
 
 public SecondaryAttack(pItem)
 {
@@ -510,7 +549,8 @@ public CBasePlayerWeapon_CanDeploy(const pItem) {
 
 public CBasePlayerWeapon_DefaultDeploy_Pre(const pItem, szViewModel[], szWeaponModel[], iAnim, szAnimExt[], skiplocal)
 {
-	if (is_nullent(pItem)) return HC_CONTINUE;
+	if (is_nullent(pItem)) 
+		return HC_CONTINUE;
 
 	if (WeaponIdType:rg_get_iteminfo(pItem,ItemInfo_iId) == UNREAL_KNIFE_FAKE_WEAPONID)
 	{
@@ -566,7 +606,7 @@ public HookWeaponList(const msg_id, const msg_dst, const msg_entity)
 	}
 	
 	unregister_message(MsgIdWeaponList, MsgHookWeaponList);
-	
+
 	UTIL_WeaponList(MSG_INIT,0,_, UNREAL_KNIFE_WEAPONNAME,UNREAL_KNIFE_AMMO_ID,
 					1,get_msg_arg_int(arg_ammo2),get_msg_arg_int(arg_ammo2_max),
 					get_msg_arg_int(arg_slot),get_msg_arg_int(arg_position) + 1,cell:UNREAL_KNIFE_UNUSED_WEAPONID,get_msg_arg_int(arg_flags));
@@ -584,20 +624,7 @@ public CBasePlayer_GiveAmmo_Pre(const id, const amount, const name[]) {
 	return HC_SUPERCEDE;
 }
 
-stock rg_get_player_item(const id, const classname[], const InventorySlotType:slot = NONE_SLOT) {
-	new item = get_member(id, m_rgpPlayerItems, slot);
-	
-	while (!is_nullent(item)) {
-		if (FClassnameIs(item, classname)) {
-			return item;
-		}
-		item = get_member(item, m_pNext);
-	}
-
-	return 0;
-}
-
-giveKnife(const id) 
+public giveKnife(const id) 
 {
 	new item = rg_get_player_item(id, UNREAL_KNIFE_CLASSNAME, KNIFE_SLOT);
 	if (item != 0) {
@@ -624,7 +651,6 @@ giveKnife(const id)
 
 	set_member(item, m_iId, UNREAL_KNIFE_UNUSED_WEAPONID);
 
-
 	rg_set_iteminfo(item, ItemInfo_pszName, UNREAL_KNIFE_WEAPONNAME);
 	rg_set_iteminfo(item, ItemInfo_pszAmmo1, UNREAL_KNIFE_AMMO_NAME);
 	rg_set_iteminfo(item, ItemInfo_iMaxAmmo1, 10);
@@ -643,25 +669,6 @@ giveKnife(const id)
 	
 	set_member(item, m_Weapon_iClip, UNREAL_KNIFE_MAX_AMMO);
 	return item;
-}
-
-giveAmmo(const id, const amount, const ammo, const maxammo) {
-	if (!is_user_connected(id) || get_entvar(id, var_flags) & FL_SPECTATOR) {
-		return;
-	}
-
-	new count = get_member(id, m_rgAmmo, ammo);
-	new addammo = min(amount, maxammo - count);
-	if (addammo < 1) {
-		return;
-	}
-
-	set_member(id, m_rgAmmo, count + addammo, ammo);
-
-	message_begin(MSG_ONE, MsgIdAmmoPickup, .player = id);
-	write_byte(ammo);
-	write_byte(addammo);
-	message_end();
 }
  
 public AddItem(id, pItem)
@@ -685,10 +692,40 @@ public AddItem(id, pItem)
 }
 
 
-stock UTIL_WeaponAnim(pItem, iSequence, Float:flDuration) {
-	PlayWeaponAnim(pItem, iSequence);
-	set_member(pItem, m_Weapon_flTimeWeaponIdle, flDuration);
+
+stock giveAmmo(const id, const amount, const ammo, const maxammo) 
+{
+	if (!is_user_connected(id) || get_entvar(id, var_flags) & FL_SPECTATOR) {
+		return;
+	}
+
+	new count = get_member(id, m_rgAmmo, ammo);
+	new addammo = min(amount, maxammo - count);
+	if (addammo < 1) {
+		return;
+	}
+
+	set_member(id, m_rgAmmo, count + addammo, ammo);
+
+	message_begin(MSG_ONE, MsgIdAmmoPickup, .player = id);
+	write_byte(ammo);
+	write_byte(addammo);
+	message_end();
 }
+
+stock rg_get_player_item(const id, const classname[], const InventorySlotType:slot = NONE_SLOT) {
+	new item = get_member(id, m_rgpPlayerItems, slot);
+	
+	while (!is_nullent(item)) {
+		if (FClassnameIs(item, classname)) {
+			return item;
+		}
+		item = get_member(item, m_pNext);
+	}
+
+	return 0;
+}
+
 
 stock SendPlayerWeaponAnim(pPlayer, pWeapon, iAnim)
 {
@@ -699,7 +736,6 @@ stock SendPlayerWeaponAnim(pPlayer, pWeapon, iAnim)
 	write_byte(iAnim);
 	write_byte(get_entvar(pWeapon, var_body));
 	message_end();
-
 }
 
 stock PlayWeaponAnim(pItem, iAnim) {
@@ -724,9 +760,14 @@ stock PlayWeaponAnim(pItem, iAnim) {
 	}
 }
 
+stock UTIL_WeaponAnim(pItem, iSequence, Float:flDuration) {
+	PlayWeaponAnim(pItem, iSequence);
+	set_member(pItem, m_Weapon_flTimeWeaponIdle, flDuration);
+}
  
 // from https://github.com/YoshiokaHaruki/AMXX-Dynamic-Crosshair
-stock UTIL_WeaponList( const iDest, const pReceiver, const pItem = -1, szWeaponName[ ] = "", const iPrimaryAmmoType = -2, iMaxPrimaryAmmo = -2, iSecondaryAmmoType = -2, iMaxSecondaryAmmo = -2, iSlot = -2, iPosition = -2, iWeaponId = -2, iFlags = -2 ) 
+stock UTIL_WeaponList( const iDest, const pReceiver, const pItem = -1, const szWeaponName[ ] = "", const iPrimaryAmmoType = -2, const iMaxPrimaryAmmo = -2, const iSecondaryAmmoType = -2, 
+						const iMaxSecondaryAmmo = -2, const iSlot = -2, const iPosition = -2, const iWeaponId = -2, const iFlags = -2 ) 
 {
 	if (pReceiver != 0 && !is_user_connected(pReceiver))
 		return;
@@ -760,7 +801,7 @@ stock velocity_by_angle(Float:fvAngles[3],Float:fVelocity, Float:fvAnglesOut[3])
 	tmpVector = fvAngles; 
 	engfunc(EngFunc_MakeVectors, tmpVector);
 	global_get(glb_v_forward, tmpVector);
-	xs_vec_mul_scalar(tmpVector, fVelocity, fvAnglesOut)
+	xs_vec_mul_scalar(tmpVector, fVelocity, fvAnglesOut);
 }
 
 stock Float:get_next_velocity_speed()
