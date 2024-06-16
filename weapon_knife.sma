@@ -28,9 +28,9 @@ new PLUGIN_AUTHOR[] = "Karaulov";
 // Количество ножей
 new UNREAL_KNIFE_MAX_AMMO = 10;
 // Урон одного ножа
-new Float:UNREAL_KNIFE_MAX_DMG = 20.0;
+new Float:UNREAL_KNIFE_MAX_DMG = 24.5;
 // Частота перезарядки ножей ( чем меньше тем быстрее )
-new Float:UNREAL_KNIFE_RELOAD_RATE = 1.0;
+new Float:UNREAL_KNIFE_RELOAD_RATE = 0.8;
 // Через сколько удалять нож с карты (Если не включен режим поднятия ножей с земли)
 new Float:UNREAL_KNIFE_REMOVE_DELAY = 0.5;
 // Через сколько нож начнет снижать скорость и начнет падать на землю
@@ -40,9 +40,9 @@ new Float:UNREAL_KNIFE_PRIMARY_ATTACK_DELAY = 0.7;
 // Скорость ПКМ атаки (+attack2)
 new Float:UNREAL_KNIFE_SECONDARY_ATTACK_DELAY = 1.5;
 // Скорость ножа минимальная
-new Float:UNREAL_KNIFE_AMMO_SPEED_MIN = 1000.0;
+new Float:UNREAL_KNIFE_AMMO_SPEED_MIN = 1350.0;
 // Скорость ножа максимальная
-new Float:UNREAL_KNIFE_AMMO_SPEED_MAX = 1000.0;
+new Float:UNREAL_KNIFE_AMMO_SPEED_MAX = 1350.0;
 // Цвет хвоста, R G B , от 0 до 255 
 new KNIFE_TAILS_COLOR_RGB[3] = {50,50,50};
 // Длина хвоста
@@ -112,6 +112,7 @@ public plugin_init()
 	/* Чтение конфигурации */
 	rm_read_cfg_str("RM_UNREAL_KNIFE","RUNE_NAME","Метательный нож",PLUGIN_NAME,charsmax(PLUGIN_NAME));
 	rm_read_cfg_str("RM_UNREAL_KNIFE","RUNE_DESCRIPTION","Дает игроку Метательный нож",PLUGIN_AUTHOR,charsmax(PLUGIN_AUTHOR));
+	rm_read_cfg_str("RM_UNREAL_KNIFE","RUNE_FLAGS",KNIFE_USER_FLAG,KNIFE_USER_FLAG,charsmax(KNIFE_USER_FLAG));
 
 	/* Регистрация руны */
 	rm_register_rune(PLUGIN_NAME, PLUGIN_AUTHOR,Float:{0.0,100.0,0.0}, UNREAL_KNIFE_W_MODEL, _,UNREAL_KNIFE_W_MODEL_ID);
